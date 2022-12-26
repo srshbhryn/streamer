@@ -16,5 +16,9 @@ var counter int
 func (_ MockPuller) Read() (string, error) {
 	time.Sleep(300 * time.Millisecond)
 	counter += 1
-	return "a," + strconv.Itoa(counter), nil
+	if counter%2 == 0 {
+		return "a," + strconv.Itoa(counter), nil
+	}
+	return "b," + strconv.Itoa(counter), nil
+
 }

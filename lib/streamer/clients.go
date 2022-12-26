@@ -1,6 +1,7 @@
 package streamer
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -11,35 +12,44 @@ func isTopicValid(topic string) bool {
 
 func reader(rw ReaderWriter) {
 	for {
-		commandAndArgs, err := rw.Read()
-		if err != nil {
-			return
-		}
-		commandAndArgsSlice := strings.Split(commandAndArgs, ",")
-		command := commandAndArgsSlice[0]
-		switch command {
-		case "subscribe":
-			if len(commandAndArgsSlice) != 2 {
-				continue
+		func() {
+			commandAndArgs, err := rw.Read()
+			fmt.Println(commandAndArgs)
+			if err != nil {
+				fmt.Println(err)
+				return
 			}
-			topic := commandAndArgsSlice[1]
-			if !isTopicValid(topic) {
-				continue
+			commandAndArgsSlice := strings.Split(commandAndArgs, ",")
+			command := commandAndArgsSlice[0]
+			switch command {
+			case "subscribe":
+				if len(commandAndArgsSlice) != 2 {
+					return
+				}
+				topic := commandAndArgsSlice[1]
+				if !isTopicValid(topic) {
+					return
+				}
+
+				clientsMutex.Lock()
+				defer clientsMutex.Unlock()
+				topics, _ := clients[client_t(rw)]
+				topics[topic] = struct{}{}
+
+			case "unsubscribe":
+				if len(commandAndArgsSlice) != 2 {
+					return
+				}
+				topic := commandAndArgsSlice[1]
+				if !isTopicValid(topic) {
+					return
+				}
+
+				clientsMutex.Lock()
+				defer clientsMutex.Unlock()
+				topics, _ := clients[client_t(rw)]
+				delete(topics, topic)
 			}
-			if _, ok := topicClients[topic][client_t(rw)]; !ok {
-				topicClients[topic][client_t(rw)] = struct{}{}
-			}
-		case "unsubscribe":
-			if len(commandAndArgsSlice) != 2 {
-				continue
-			}
-			topic := commandAndArgsSlice[1]
-			if !isTopicValid(topic) {
-				continue
-			}
-			if _, ok := topicClients[topic][client_t(rw)]; ok {
-				delete(topicClients[topic], client_t(rw))
-			}
-		}
+		}()
 	}
 }

@@ -2,6 +2,7 @@ package streamer
 
 import (
 	"strings"
+	"sync"
 )
 
 type ReaderWriter interface {
@@ -17,37 +18,40 @@ type client_t ReaderWriter
 type source_t Reader
 
 var source source_t
-var clients map[client_t]struct{}
-var topicClients map[string]map[client_t]struct{}
+var clients map[client_t]map[string]struct{}
+var clientsMutex sync.Mutex
 
 func Init(r Reader) {
 	source = r
-	clients = make(map[client_t]struct{}, 2^16)
-	topicClients = make(map[string]map[client_t]struct{})
-	for topic := range config.topics {
-		topicClients[topic] = make(map[client_t]struct{}, 2048)
-	}
+	clients = make(map[client_t]map[string]struct{}, 2^16)
+	clientsMutex = sync.Mutex{}
 }
 
 func Add(rw ReaderWriter) {
 	if _, ok := clients[client_t(rw)]; ok {
 		return
 	}
-	clients[client_t(rw)] = struct{}{}
+	clientsMutex.Lock()
+	defer clientsMutex.Unlock()
+	clients[client_t(rw)] = make(map[string]struct{}, 32)
 	go reader(rw)
 }
 
 func Run() {
 	for {
-		msgAngTopicStr, _ := source.Read()
-		msgAngTopic := strings.Split(msgAngTopicStr, ",")
-		topic := msgAngTopic[0]
-		clients, ok := topicClients[topic]
-		if !ok {
-			continue
-		}
-		for c := range clients {
-			go c.Write(msgAngTopicStr)
-		}
+		func() {
+			msgAngTopicStr, _ := source.Read()
+			msgAngTopic := strings.Split(msgAngTopicStr, ",")
+			topic := msgAngTopic[0]
+			clientsMutex.Lock()
+			defer clientsMutex.Unlock()
+			for c, topics := range clients {
+				_, ok := topics[topic]
+				if !ok {
+					continue
+				}
+				go c.Write(msgAngTopicStr)
+			}
+		}()
 	}
 }
