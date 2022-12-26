@@ -1,12 +1,10 @@
 package webserver
 
 import (
-	"fmt"
 	"net/http"
-	"sync"
-	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/srshbhryn/streamer/lib/streamer"
 	"github.com/srshbhryn/streamer/lib/websocket"
 )
 
@@ -39,32 +37,7 @@ func Create() {
 		if err != nil {
 			c.JSON(400, "")
 		}
-		wg := sync.WaitGroup{}
-		wg.Add(2)
-		go func() {
-			for {
-				msg, err := handler.Read()
-				if err != nil {
-					wg.Done()
-					wg.Done()
-					return
-				}
-				fmt.Println(msg)
-			}
-		}()
-		go func() {
-			for {
-				msg := "HeartBeat"
-				err := handler.Write(msg)
-				if err != nil {
-					wg.Done()
-					wg.Done()
-					return
-				}
-				time.Sleep(time.Second)
-			}
-		}()
-		wg.Wait()
+		streamer.Add(handler)
 	})
 
 }
